@@ -122,6 +122,7 @@ class Op(object):
 
 
 class AddOp(Op):
+    # 加的操作
     def __call__(self, node_A, node_B):
         new_node = Op.__call__(self)
         new_node.inputs = [node_A, node_B]
@@ -135,9 +136,11 @@ class AddOp(Op):
             output_val[:] = input_vals[0] + input_vals[1]
         else:
             if input_vals[0].shape == input_vals[1].shape:
+                #如果是相同的,调用gpu的加操作
                 gpu_op.matrix_elementwise_add(
                     input_vals[0], input_vals[1], output_val)
             else:
+                #常量 与 向量相加
                 if input_vals[1].shape == (1,):
                     const_val = input_vals[1].asnumpy()[0]
                     gpu_op.matrix_elementwise_add_by_const(
@@ -352,6 +355,7 @@ class OnesLikeOp(Op):
     def compute(self, node, input_vals, output_val, use_numpy=True):
         assert len(input_vals) == 1
         if use_numpy:
+            #output_val[:] = np.ones(3)
             output_val[:] = np.ones(input_vals[0].shape)
         else:
             gpu_op.array_set(output_val, 1)
@@ -612,6 +616,7 @@ class Executor(object):
         use_numpy = self.ctx is None
         node_to_val_map = {}
         for node, value in feed_dict.items():
+            #print node, value, type(node)
             if use_numpy:
                 # all values passed in feed_dict must be np.ndarray
                 assert isinstance(value, np.ndarray)
@@ -624,11 +629,12 @@ class Executor(object):
                     node_to_val_map[node] = value
                 else:
                     assert False, "feed_dict value type not supported"
-
+        #print node_to_val_map
         # collect shapes for all placeholders
         feed_shapes = {}
         for node in node_to_val_map:
             feed_shapes[node] = node_to_val_map[node].shape
+        #print feed_shapes
 
         # infer shape if feed_shapes changed since last run
         # e.g. call run() on test data after trainng
@@ -646,7 +652,11 @@ class Executor(object):
                 continue
             input_vals = [node_to_val_map[n] for n in node.inputs]
             if use_numpy:
-                node_val = np.empty(shape=self.node_to_shape_map[node])
+                #print self.node_to_shape_map
+                #print node_to_val_map[node].shape
+                node_val = np.empty(shape=(3, ))
+                #node_val = np.empty(shape=node_to_val_map[node].shape)
+                #node_val = np.empty(shape=self.node_to_shape_map[node])
             else:
                 node_val = self.node_to_arr_map[node]
             # node_val is modified in-place whether np.ndarray or NDArray
